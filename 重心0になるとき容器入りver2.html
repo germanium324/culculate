@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>容器の重心計算</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .input-group {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>容器の重心計算</h1>
+    <p>今回使った500mlペットボトルは底辺6cm、質量27g、重心11.7cm</p>
+    <p>※高さは20cmまで</p>
+    <div class="input-group">
+        <label for="h">水面の高さ h (cm): </label>
+        <input type="number" id="h" required>
+    </div>
+    <div class="input-group">
+        <label for="l">底面の一辺 l (cm): </label>
+        <input type="number" id="l" required>
+    </div>
+    <div class="input-group">
+        <label for="M">容器の質量 M (g): </label>
+        <input type="number" id="M" required>
+    </div>
+    <div class="input-group">
+        <label for="Gh">容器の重心の高さ Gh (cm): </label>
+        <input type="number" id="Gh" required>
+    </div>
+    <button onclick="calculateTheta()">最大傾斜と重心を計算</button>
+    <h2 id="result"></h2>
+
+    <script>
+        function culculate3(P1, P2, P3) {
+            // 三角形の重心を計算
+            const centroidX = (P1.x + P2.x + P3.x) / 3;
+            const centroidY = (P1.y + P2.y + P3.y) / 3;
+            return { x: centroidX, y: centroidY };
+        }
+
+        function calculate4(P1, P2, P3, P4) {
+            // 四角形を2つの三角形に分割
+            const centroid1 = culculate3(P1, P2, P3);
+            const centroid2 = culculate3(P1, P3, P4);
+            const area1 = calculate3Area(P1, P2, P3);
+            const area2 = calculate3Area(P1, P3, P4);
+
+            // 四角形の重心を計算
+            const centroidX = (centroid1.x * area1 + centroid2.x * area2) / (area1 + area2);
+            const centroidY = (centroid1.y * area1 + centroid2.y * area2) / (area1 + area2);
+            return { x: centroidX, y: centroidY };
+        }
+
+        function calculate3Area(P1, P2, P3) {
+            // 三角形の面積を計算
+            return Math.abs(P1.x * (P2.y - P3.y) + P2.x * (P3.y - P1.y) + P3.x * (P1.y - P2.y)) / 2;
+        }
+
+        function calculateTheta() {
+            // 入力値を取得
+            const h = parseFloat(document.getElementById('h').value);
+            const l = parseFloat(document.getElementById('l').value);
+            const M = parseFloat(document.getElementById('M').value);
+            const Gh = parseFloat(document.getElementById('Gh').value);
+
+            // 水の質量
+            const waterMass = h * l * l; // g
+
+            // θを探すために最適化を使用
+            let bestTheta = 0;
+            let minDiff = Number.MAX_VALUE;
+            let bestCentroid = { x: 0, y: 0 };
+
+            for (let t = 0; t <= 90; t += 0.001) {
+                const thetaRad = t * (Math.PI / 180);
+                const cosTheta = Math.cos(thetaRad);
+                const sinTheta = Math.sin(thetaRad);
+
+                let waterCentroid;
+                if (Math.atan(2 * h / l) > thetaRad) {
+                    const P1 = { x: 0, y: 0 };
+                    const P2 = { x: l * cosTheta, y: l * sinTheta };
+                    const P3 = { x: (l / 2) * (cosTheta + 1 / cosTheta) - h * sinTheta, y: (l / 2) * sinTheta + h * cosTheta };
+                    const P4 = { x: (l / 2) * (cosTheta - 1 / cosTheta) - h * sinTheta, y: (l / 2) * sinTheta + h * cosTheta };
+
+                    waterCentroid = calculate4(P1, P2, P3, P4);
+                } else {
+                    const sqrtTerm = Math.sqrt(l * h * Math.sin(2 * thetaRad));
+                    const P1 = { x: 0, y: 0 };
+                    const P2 = { x: sqrtTerm / Math.tan(thetaRad), y: sqrtTerm };
+                    const P3 = { x: -Math.tan(thetaRad) * sqrtTerm, y: sqrtTerm };
+
+                    waterCentroid = culculate3(P1, P2, P3);
+                }
+
+                // 容器の重心位置を更新
+                const containerCentroidX = (l / 2) * cosTheta - Gh * sinTheta;
+                const containerCentroidY = (l / 2) * sinTheta + Gh * cosTheta;
+
+                // 容器と水の重心を質量で合わせる
+                const combinedCentroidX = (M * containerCentroidX + waterMass * waterCentroid.x) / (M + waterMass);
+                const combinedCentroidY = (M * containerCentroidY + waterMass * waterCentroid.y) / (M + waterMass);
+
+                if (Math.abs(combinedCentroidX) < minDiff) {
+                    minDiff = Math.abs(combinedCentroidX);
+                    bestTheta = t;
+                    bestCentroid = { x: combinedCentroidX, y: combinedCentroidY };
+                }
+            }
+
+            // 結果を表示
+            document.getElementById('result').innerHTML = `容器が倒れる傾斜: ${bestTheta.toFixed(4)}度<br>重心の座標: (0.00000, ${bestCentroid.y.toFixed(5)})<br>(水の質量: ${waterMass.toFixed(2)} g, 容器の質量: ${M.toFixed(2)} g)`;
+        }
+    </script>
+</body>
+</html>
